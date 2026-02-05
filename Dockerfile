@@ -1,17 +1,23 @@
-# Official Maven + Java 21 image
-FROM maven:3.9.9-eclipse-temurin-21
+#Build stage
+FROM maven:3.9-eclipse-temurin-17 AS build
 
 WORKDIR /app
 
-# Copy files
 COPY pom.xml .
+
+RUN mvn dependency:go-offline
+
 COPY src ./src
 
-# Build
-RUN mvn clean compile
+RUN mvn clean package -DskipTests
 
-# Expose port
+# Runtime stage
+FROM eclipse-temurin:17-jre-alpine
+
+WORKDIR /app
+
+COPY --from=build /app/target/quote-api-1.0-SNAPSHOT-jar-with-dependencies.jar app.jar
+
 EXPOSE 8080
 
-# Run your app
-CMD ["mvn", "exec:java", "-Dexec.mainClass=QuoteApp"]
+CMD ["java", "-jar", "app.jar"]

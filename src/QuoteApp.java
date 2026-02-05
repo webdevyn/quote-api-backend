@@ -9,18 +9,34 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 
 public class QuoteApp {
-    //fetch quote from zenquotes site
+    //fetch quotes from type.fit (free quote sites seem to go down often so check this regularly)
     private static String fetchQuoteJson() throws Exception {
         HttpClient client = HttpClient.newHttpClient();
-        HttpRequest request = HttpRequest.newBuilder().uri(URI.create("https://zenquotes.io/api/random")).build();
+        HttpRequest request = HttpRequest.newBuilder()
+                .uri(URI.create("https://type.fit/api/quotes"))
+                .build();
         HttpResponse<String> response = client.send(request, HttpResponse.BodyHandlers.ofString());
-        return response.body();
+
+        // the api returns all available quotes
+        // need to parse and pick one random quote
+        String allQuotes = response.body();
+
+        // use Gson to parse the JSON array
+        com.google.gson.Gson gson = new com.google.gson.Gson();
+        com.google.gson.JsonArray quotesArray = gson.fromJson(allQuotes, com.google.gson.JsonArray.class);
+
+        // pick a random quote
+        int randomIndex = new java.util.Random().nextInt(quotesArray.size());
+        com.google.gson.JsonObject randomQuote = quotesArray.get(randomIndex).getAsJsonObject();
+
+        // return just the one random quote as JSON
+        return gson.toJson(randomQuote);
     }
 
     public static void main(String[] args) throws IOException {
         //create HTTP server (use localhost:8080 for now)
         HttpServer server = HttpServer.create(
-            new InetSocketAddress("localhost", 8080), 0);
+            new InetSocketAddress("0.0.0.0", 8080), 0);
         //define the api endpoint
         server.createContext("/api/quote", exchange -> {
             try {
@@ -48,11 +64,15 @@ public class QuoteApp {
                 exchange.sendResponseHeaders(500, -1);
             }
         });
-        server.start();
-        System.out.println("Server started at http://localhost:8080/api/quote . Press ENTER to stop.");
-        System.in.read();
-        server.stop(2);
-        System.out.println("Server stopped.");
 
+        server.start();
+        System.out.println("Server started on port 8080 at /api/quote");
+
+        // keep JVM alive and server running
+        try {
+            Thread.currentThread().join();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 }
